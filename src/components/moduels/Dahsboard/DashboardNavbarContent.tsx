@@ -1,0 +1,71 @@
+"use client";
+
+import { Button } from "@/components/ui/button";
+import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { Menu } from "lucide-react";
+import { useEffect, useState } from "react";
+import { NavSection } from "../../../../types/dashboard.interface";
+import { UserInfo } from "../../../../types/user.interface";
+import DashboardMobileSidebar from "./DashboardMobileSidebar";
+import UserDropdown from "@/components/shared/UserDropdown";
+
+interface DashboardNavbarContentProps {
+    userInfo: UserInfo;
+    navItems?: NavSection[];
+    dashboardHome?: string;
+}
+const DashboardNavbarContent = ({
+    userInfo,
+    navItems,
+    dashboardHome,
+}: DashboardNavbarContentProps) => {
+    const [isOpen, setIsOpen] = useState(false);
+    const [isMobile, setIsMobile] = useState(false);
+
+
+    // useEffect(() => {
+    //     const checkSmallerScreen = () => {
+    //         setIsMobile(window.innerWidth < 768);
+    //     };
+
+    //     checkSmallerScreen();
+    //     window.addEventListener("resize", checkSmallerScreen);
+
+    //     return () => {
+    //         window.removeEventListener("resize", checkSmallerScreen);
+    //     };
+    // }, []);
+
+
+
+    return (
+        <header className="lg:hidden sticky top-0 z-40 w-full border-b bg-background/95 backdrop-blur">
+            <div className="flex h-16 items-center justify-between gap-4 px-4 md:px-6">
+                {/* Mobile Menu Toggle */}
+                <Sheet onOpenChange={setIsOpen}>
+                    <SheetTrigger asChild className="">
+                        <Button variant="outline" size="icon">
+                            <Menu className="h-5 w-5" />
+                        </Button>
+                    </SheetTrigger>
+                    {/* Hide the overlay on medium and larger screens */}
+                    <SheetContent side="left" className="w-64 p-0">
+                        <DashboardMobileSidebar
+                            userInfo={userInfo}
+                            navItems={navItems || []}
+                            dashboardHome={dashboardHome || ""}
+                        />
+                    </SheetContent>
+                </Sheet>
+                <div className="flex-1"></div>
+                {/* Right Side Actions */}
+                <div className="flex items-center gap-2">
+                    {/* User Dropdown */}
+                    <UserDropdown userInfo={userInfo} />
+                </div>
+            </div>
+        </header>
+    );
+};
+
+export default DashboardNavbarContent;
