@@ -14,7 +14,10 @@ export function StatusBadgeCell({
   deletedText = "Deleted",
 }: StatusBadgeCellProps) {
   return (
-    <Badge variant={isDeleted ? "destructive" : "default"}>
+    <Badge
+      variant={isDeleted ? "destructive" : "default"}
+      className={!isDeleted ? "bg-green-500 text-white hover:bg-green-700" : ""}
+    >
       {isDeleted ? deletedText : activeText}
     </Badge>
   );

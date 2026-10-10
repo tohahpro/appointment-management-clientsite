@@ -3,19 +3,18 @@
 import ManagementPageHeader from "@/components/shared/ManagementPageHeader";
 
 
-const PaymentsManagementHeader = () => {
 
+const DoctorsManagementHeader = () => {
 
     return (
         <div>
 
-
             <ManagementPageHeader
-                title="Payment Management"
-                description="Manage Payments information and details"
+                title="Doctor Management"
+                description="Manage Doctors information and details"
             />
         </div>
     );
 };
 
-export default PaymentsManagementHeader;
+export default DoctorsManagementHeader;

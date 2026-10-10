@@ -13,7 +13,7 @@ interface UserInfoCellProps {
 export function UserInfoCell({ name, email, photo }: UserInfoCellProps) {
   return (
     <div className="flex items-center gap-3">
-      <Avatar className="w-12 h-12">
+      <Avatar className="w-12 h-12 rounded-full">
         {photo ? (
           <Image src={photo} alt={name} width={40} height={40} />
         ) : (

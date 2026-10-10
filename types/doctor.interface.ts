@@ -4,10 +4,12 @@ export interface DoctorSpecialty {
     specialitiesId: string;
     specialities: {
         id: string;
-        name: string;
+        title: string;
         description?: string | null;
     };
 }
+
+export type UserStatus = "ACTIVE" | "INACTIVE" | "BLOCKED";
 
 export interface IDoctor {
     id: string;
@@ -27,5 +29,9 @@ export interface IDoctor {
     isDeleted: boolean;
     createdAt: string;
     updatedAt: string;
+    user: {
+        id: string;
+        status: UserStatus;
+    };
     doctorSpecialties?: DoctorSpecialty[];
 }

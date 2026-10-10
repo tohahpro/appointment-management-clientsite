@@ -10,7 +10,40 @@ const createSpeacialityZodSchema = z.object({
     title: z.string().min(3, "Title must be at least 3 characters long")
 })
 
+export async function createSpeaciality(_prevState: any, formData: FormData) {
+    try {
+        const payload = {
+            title: formData.get("title") as string,
+        };
 
+        // Zod Validation
+        const validation = zodValidator(payload, createSpeacialityZodSchema);
+
+        if (!validation.success) {
+            return validation;
+        }
+
+        // API Request
+        const response = await serverFetch.post("/speciality", {
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify(validation.data),
+        });
+
+        const result = await response.json();
+
+        return result;
+
+    } catch (error: any) {
+        console.error(error);
+
+        return {
+            success: false,
+            message: `${process.env.NODE_ENV === 'development' ? error.message : 'Something went wrong'}`
+        };
+    }
+}
 
 
 export async function getSpeacialities() {
