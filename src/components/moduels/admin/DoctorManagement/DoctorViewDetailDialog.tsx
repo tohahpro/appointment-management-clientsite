@@ -179,8 +179,7 @@ const DoctorViewDetailDialog = ({
           flex-col gap-0 overflow-hidden rounded-2xl
           border border-slate-200 bg-[#F8FAFC]
           p-0 shadow-2xl
-          sm:max-w-5xl sm:rounded-3xl
-        "
+          sm:max-w-5xl sm:rounded-3xl"
       >
         {/* ================= PROFILE HEADER ================= */}
 
