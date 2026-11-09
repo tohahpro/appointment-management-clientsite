@@ -10,9 +10,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useDebounce } from "@/hooks/useDebounce";
-import { Search } from "lucide-react";
+import { Search, X } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
+
+const LIST_PATH = "/consultation/doctors";
 
 interface DoctorSearchFiltersProps {
   specialties: Array<{ id: string; title: string }>;
@@ -49,7 +51,7 @@ export default function DoctorSearchFilters({
       // Reset to page 1 when filters change
       params.delete("page");
 
-      router.push(`/consultation?${params.toString()}`);
+      router.push(`${LIST_PATH}?${params.toString()}`);
     },
     [router]
   );
@@ -66,23 +68,25 @@ export default function DoctorSearchFilters({
 
   const handleClearFilters = () => {
     setSearchTerm("");
-    router.push("/consultation");
+    router.push(LIST_PATH);
   };
 
   const hasActiveFilters =
-    searchParams.get("searchTerm") || searchParams.get("specialties");
+    searchParams.get("searchTerm") ||
+    searchParams.get("specialties") ||
+    searchParams.get("gender");
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-col md:flex-row gap-4">
+    <div className="rounded-2xl border bg-card p-4 shadow-xl sm:p-5">
+      <div className="flex flex-col gap-3 md:flex-row md:items-center">
         {/* Search Input */}
-        <div className="flex-1 relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <div className="relative flex-1">
+          <Search className="absolute left-4 top-1/2 size-5 -translate-y-1/2 text-blue-600 dark:text-blue-400" />
           <Input
             placeholder="Search doctors by name..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-10"
+            className="h-12 rounded-xl bg-muted/40 pl-12 text-base"
           />
         </div>
 
@@ -91,7 +95,7 @@ export default function DoctorSearchFilters({
           value={searchParams.get("specialties") || "all"}
           onValueChange={(value) => updateFilters("specialties", value)}
         >
-          <SelectTrigger className="w-full md:w-62.5">
+          <SelectTrigger className="h-12 w-full rounded-xl bg-muted/40 md:w-60">
             <SelectValue placeholder="Select Specialty" />
           </SelectTrigger>
           <SelectContent>
@@ -109,7 +113,7 @@ export default function DoctorSearchFilters({
           value={searchParams.get("gender") || "all"}
           onValueChange={(value) => updateFilters("gender", value)}
         >
-          <SelectTrigger className="w-full md:w-45">
+          <SelectTrigger className="h-12 w-full rounded-xl bg-muted/40 md:w-44">
             <SelectValue placeholder="Gender" />
           </SelectTrigger>
           <SelectContent>
@@ -122,11 +126,12 @@ export default function DoctorSearchFilters({
         {/* Clear Filters */}
         {hasActiveFilters && (
           <Button
-            variant="outline"
+            variant="ghost"
             onClick={handleClearFilters}
-            className="w-full md:w-auto"
+            className="h-12 w-full cursor-pointer rounded-xl text-muted-foreground md:w-auto"
           >
-            Clear Filters
+            <X className="mr-1 size-4" />
+            Clear
           </Button>
         )}
       </div>

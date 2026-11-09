@@ -4,12 +4,22 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import {
+  ArrowRight,
   CalendarDays,
   Check,
   Clock3,
-  Stethoscope,
+  Moon,
+  Sun,
+  Sunrise,
 } from "lucide-react";
 
+import {
+  formatScheduleDate,
+  getAvailableSchedules,
+  groupSchedulesByDate,
+  TIME_ZONE,
+} from "@/components/moduels/Doctor/DoctorDetails/scheduleUtils";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 
 import {
@@ -21,7 +31,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 
-import { ScrollArea } from "@/components/ui/scroll-area";
+import { getInitials } from "@/lib/formatters";
 
 import { IDoctor, IDoctorSchedule } from "../../../../types/doctor.interface";
 
@@ -31,34 +41,26 @@ interface BookAppointmentDialogProps {
   onClose: () => void;
 }
 
-const TIME_ZONE = "Asia/Dhaka";
+// Hour of the day (0-23) in Bangladesh timezone
+const getHour = (date: string): number =>
+  Number(
+    new Intl.DateTimeFormat("en-US", {
+      timeZone: TIME_ZONE,
+      hour: "numeric",
+      hourCycle: "h23",
+    }).format(new Date(date))
+  );
 
-// Format date and time in Bangladesh timezone
-const formatScheduleDate = (
-  date: string,
-  options: Intl.DateTimeFormatOptions
-): string => {
-  return new Intl.DateTimeFormat("en-US", {
-    timeZone: TIME_ZONE,
-    ...options,
-  }).format(new Date(date));
-};
-
-// Generate YYYY-MM-DD key in Bangladesh timezone
-const getScheduleDateKey = (date: string): string => {
-  const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone: TIME_ZONE,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).formatToParts(new Date(date));
-
-  const year = parts.find((part) => part.type === "year")?.value;
-  const month = parts.find((part) => part.type === "month")?.value;
-  const day = parts.find((part) => part.type === "day")?.value;
-
-  return `${year}-${month}-${day}`;
-};
+const PERIODS = [
+  { id: "morning", label: "Morning", icon: Sunrise, test: (h: number) => h < 12 },
+  {
+    id: "afternoon",
+    label: "Afternoon",
+    icon: Sun,
+    test: (h: number) => h >= 12 && h < 17,
+  },
+  { id: "evening", label: "Evening", icon: Moon, test: (h: number) => h >= 17 },
+];
 
 export default function BookAppointmentDialog({
   doctor,
@@ -69,60 +71,30 @@ export default function BookAppointmentDialog({
 
   const [selectedSchedule, setSelectedSchedule] =
     useState<IDoctorSchedule | null>(null);
+  const [selectedDayKey, setSelectedDayKey] = useState<string | null>(null);
 
   // Get schedules directly from Doctor
   const doctorSchedules = doctor.schedule ?? [];
 
-  // Group available schedules by date
-  const groupedSchedules = useMemo(() => {
-    const grouped: Record<string, IDoctorSchedule[]> = {};
+  // Future, not-yet-booked slots grouped by date (Bangladesh timezone)
+  const { days, totalAvailableSlots } = useMemo(() => {
+    const available = getAvailableSchedules(doctorSchedules);
 
-    const now = Date.now();
-
-    const availableSchedules = doctorSchedules
-      .filter((schedule) => {
-        const startTime = new Date(
-          schedule.startDateTime
-        ).getTime();
-
-        return (
-          schedule.isBooked === false &&
-          Number.isFinite(startTime) &&
-          startTime > now
-        );
-      })
-      .sort(
-        (a, b) =>
-          new Date(a.startDateTime).getTime() -
-          new Date(b.startDateTime).getTime()
-      );
-
-    availableSchedules.forEach((schedule) => {
-      const dateKey = getScheduleDateKey(
-        schedule.startDateTime
-      );
-
-      if (!grouped[dateKey]) {
-        grouped[dateKey] = [];
-      }
-
-      grouped[dateKey].push(schedule);
-    });
-
-    return Object.entries(grouped).sort(
-      ([dateA], [dateB]) => dateA.localeCompare(dateB)
-    );
+    return {
+      days: groupSchedulesByDate(available),
+      totalAvailableSlots: available.length,
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [doctorSchedules, isOpen]);
 
-  // Total available slots
-  const totalAvailableSlots = groupedSchedules.reduce(
-    (total, [, schedules]) => total + schedules.length,
-    0
-  );
+  const activeDay =
+    days.find(([key]) => key === selectedDayKey) ?? days[0] ?? null;
+  const activeSlots = activeDay ? activeDay[1] : [];
 
   // Close dialog
   const handleCloseModal = () => {
     setSelectedSchedule(null);
+    setSelectedDayKey(null);
     onClose();
   };
 
@@ -130,8 +102,7 @@ export default function BookAppointmentDialog({
   const handleContinue = () => {
     if (!selectedSchedule) return;
 
-    const bookingUrl =
-      `/dashboard/book-appointment/${doctor.id}/${selectedSchedule.id}`;
+    const bookingUrl = `/dashboard/book-appointment/${doctor.id}/${selectedSchedule.id}`;
 
     handleCloseModal();
 
@@ -147,19 +118,7 @@ export default function BookAppointmentDialog({
         }
       }}
     >
-      <DialogContent
-        className="
-                    flex
-                    max-h-[90vh]
-                    w-[calc(100%-2rem)]
-                    max-w-2xl
-                    flex-col
-                    gap-0
-                    overflow-hidden
-                    p-0
-                    sm:max-w-2xl
-                "
-      >
+      <DialogContent className="flex max-h-[90vh] w-[calc(100%-2rem)] max-w-2xl flex-col gap-0 overflow-hidden rounded-2xl p-0 sm:max-w-2xl">
         {/* Dialog Header */}
         <DialogHeader className="shrink-0 border-b px-5 py-5 sm:px-6">
           <DialogTitle className="text-lg font-semibold sm:text-xl">
@@ -167,198 +126,204 @@ export default function BookAppointmentDialog({
           </DialogTitle>
 
           <DialogDescription>
-            Select an available consultation time with{" "}
-            <span className="font-medium text-foreground">
-              {doctor.name}
-            </span>
+            Choose a date and time that works for you with{" "}
+            <span className="font-medium text-foreground">{doctor.name}</span>
           </DialogDescription>
         </DialogHeader>
 
         {/* Dialog Body */}
         <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5 sm:px-6">
-          <div className="space-y-5">
-
+          <div className="space-y-6">
             {/* Doctor Information */}
-            <div className="flex items-start gap-3 rounded-xl border bg-muted/40 p-4">
-              <div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                <Stethoscope className="size-5" />
-              </div>
+            <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-blue-700 via-blue-600 to-teal-500 p-4 text-white shadow-md">
+              <div className="pointer-events-none absolute -right-10 -top-12 size-40 rounded-full bg-white/10" />
 
-              <div className="min-w-0 flex-1">
-                <h3 className="font-semibold">
-                  {doctor.name}
-                </h3>
+              <div className="relative flex items-center gap-4">
+                <Avatar className="size-16 shrink-0 shadow-md ring-2 ring-white/50">
+                  <AvatarImage
+                    src={doctor.profilePhoto || ""}
+                    alt={doctor.name}
+                    className="object-cover"
+                  />
+                  <AvatarFallback className="bg-white/20 text-lg font-semibold text-white">
+                    {getInitials(doctor.name)}
+                  </AvatarFallback>
+                </Avatar>
 
-                <p className="mt-1 text-sm text-muted-foreground">
-                  {doctor.designation}
-                </p>
+                <div className="min-w-0 flex-1">
+                  <h3 className="truncate text-lg font-semibold">
+                    {doctor.name}
+                  </h3>
+                  <p className="truncate text-sm text-blue-50/90">
+                    {doctor.designation}
+                  </p>
+                </div>
 
-                <p className="mt-2 text-sm">
-                  Consultation Fee:{" "}
-                  <span className="font-semibold text-primary">
-                    ৳{doctor.appointmentFee}
-                  </span>
-                </p>
+                <div className="shrink-0 text-right">
+                  <p className="text-xs text-blue-100">Consultation fee</p>
+                  <p className="text-2xl font-bold">৳{doctor.appointmentFee}</p>
+                </div>
               </div>
             </div>
 
             {/* Available Slots Header */}
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <h3 className="text-sm font-semibold">
-                  Available Time Slots
-                </h3>
+                <h3 className="text-sm font-semibold">Select date &amp; time</h3>
 
                 <p className="mt-1 text-xs text-muted-foreground">
-                  Choose your preferred date and time
+                  All times are in Bangladesh time (BST)
                 </p>
               </div>
 
-              <span className="rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
+              <span className="rounded-full bg-blue-100 px-3 py-1 text-xs font-semibold text-blue-700 dark:bg-blue-500/15 dark:text-blue-300">
                 {totalAvailableSlots} Available
               </span>
             </div>
 
             {/* Available Schedules */}
-            {groupedSchedules.length === 0 ? (
+            {!activeDay ? (
               <div className="flex flex-col items-center justify-center rounded-xl border border-dashed px-4 py-12 text-center">
                 <div className="mb-3 flex size-12 items-center justify-center rounded-full bg-muted">
                   <CalendarDays className="size-6 text-muted-foreground" />
                 </div>
 
-                <p className="font-medium">
-                  No Available Slots
-                </p>
+                <p className="font-medium">No Available Slots</p>
 
                 <p className="mt-1 max-w-xs text-sm text-muted-foreground">
-                  This doctor currently has no available
-                  appointment slots. Please check back later.
+                  This doctor currently has no available appointment slots.
+                  Please check back later.
                 </p>
               </div>
             ) : (
-              <ScrollArea className="h-64 pr-3 sm:h-72">
-                <div className="space-y-5">
+              <div className="space-y-5">
+                {/* Day picker */}
+                <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-2">
+                  {days.map(([key, slots]) => {
+                    const isActive = key === activeDay[0];
 
-                  {groupedSchedules.map(
-                    ([date, schedules]) => (
-                      <div
-                        key={date}
-                        className="space-y-3"
+                    return (
+                      <button
+                        key={key}
+                        type="button"
+                        aria-pressed={isActive}
+                        onClick={() => {
+                          setSelectedDayKey(key);
+                          setSelectedSchedule(null);
+                        }}
+                        className={`flex min-w-20 shrink-0 cursor-pointer flex-col items-center rounded-xl border px-3 py-2.5 transition-colors ${
+                          isActive
+                            ? "border-blue-600 bg-blue-600 text-white shadow-md"
+                            : "bg-card hover:border-blue-300 hover:bg-blue-50 dark:hover:bg-blue-500/10"
+                        }`}
                       >
-                        {/* Date Header */}
-                        <div className="flex items-center gap-2">
-                          <CalendarDays className="size-4 shrink-0 text-primary" />
+                        <span
+                          className={`text-xs ${isActive ? "text-blue-100" : "text-muted-foreground"}`}
+                        >
+                          {formatScheduleDate(slots[0].startDateTime, {
+                            weekday: "short",
+                          })}
+                        </span>
+                        <span className="text-xl font-bold leading-tight">
+                          {formatScheduleDate(slots[0].startDateTime, {
+                            day: "numeric",
+                          })}
+                        </span>
+                        <span
+                          className={`text-xs ${isActive ? "text-blue-100" : "text-muted-foreground"}`}
+                        >
+                          {formatScheduleDate(slots[0].startDateTime, {
+                            month: "short",
+                          })}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
 
-                          <h4 className="text-sm font-semibold">
-                            {formatScheduleDate(
-                              schedules[0].startDateTime,
-                              {
-                                weekday: "long",
-                                month: "long",
-                                day: "numeric",
-                                year: "numeric",
-                              }
-                            )}
-                          </h4>
+                {/* Time slots grouped by part of the day */}
+                <div className="space-y-4">
+                  {PERIODS.map(({ id, label, icon: Icon, test }) => {
+                    const periodSlots = activeSlots.filter((s) =>
+                      test(getHour(s.startDateTime))
+                    );
+
+                    if (periodSlots.length === 0) return null;
+
+                    return (
+                      <div key={id} className="space-y-2.5">
+                        <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                          <Icon className="size-4 text-blue-600 dark:text-blue-400" />
+                          {label}
                         </div>
 
-                        {/* Time Slots */}
-                        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                          {schedules.map((schedule) => {
+                        <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+                          {periodSlots.map((schedule) => {
                             const isSelected =
                               selectedSchedule?.id === schedule.id;
 
-                            const startTime =
-                              formatScheduleDate(
-                                schedule.startDateTime,
-                                {
-                                  hour: "numeric",
-                                  minute: "2-digit",
-                                  hour12: true,
-                                }
-                              );
-
                             return (
-                              <Button
+                              <button
                                 key={schedule.id}
                                 type="button"
-                                variant={
-                                  isSelected
-                                    ? "default"
-                                    : "outline"
-                                }
-                                onClick={() =>
-                                  setSelectedSchedule(schedule)
-                                }
                                 aria-pressed={isSelected}
-                                className="
-                                                                    h-auto
-                                                                    min-h-11
-                                                                    justify-center
-                                                                    gap-2
-                                                                    rounded-lg
-                                                                    px-2
-                                                                    py-3
-                                                                    text-xs
-                                                                    sm:text-sm
-                                                                "
+                                onClick={() => setSelectedSchedule(schedule)}
+                                className={`flex min-h-11 cursor-pointer items-center justify-center gap-1.5 rounded-lg border px-2 py-2.5 text-sm transition-colors ${
+                                  isSelected
+                                    ? "border-blue-600 bg-blue-600 font-medium text-white shadow-md"
+                                    : "bg-card hover:border-blue-300 hover:bg-blue-50 dark:hover:bg-blue-500/10"
+                                }`}
                               >
                                 {isSelected ? (
                                   <Check className="size-4 shrink-0" />
                                 ) : (
-                                  <Clock3 className="size-4 shrink-0" />
+                                  <Clock3 className="size-4 shrink-0 text-blue-600 dark:text-blue-400" />
                                 )}
 
-                                <span>
-                                  {startTime}
-                                </span>
-                              </Button>
+                                {formatScheduleDate(schedule.startDateTime, {
+                                  hour: "numeric",
+                                  minute: "2-digit",
+                                  hour12: true,
+                                })}
+                              </button>
                             );
                           })}
                         </div>
                       </div>
-                    )
-                  )}
+                    );
+                  })}
                 </div>
-              </ScrollArea>
+              </div>
             )}
           </div>
         </div>
 
         {/* Dialog Footer */}
-        <DialogFooter className="shrink-0 border-t bg-muted/20 px-5 py-4 sm:px-6">
+        <DialogFooter className="shrink-0 border-t bg-muted/30 px-5 py-4 sm:px-6">
           <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-
             {/* Selected Schedule */}
-            <div className="text-sm text-muted-foreground">
+            <div className="text-sm">
               {selectedSchedule ? (
-                <>
-                  <span className="font-medium text-foreground">
-                    Selected:{" "}
-                  </span>
-
-                  {formatScheduleDate(
-                    selectedSchedule.startDateTime,
-                    {
+                <div className="flex items-center gap-2 rounded-lg bg-blue-50 px-3 py-2 text-blue-800 dark:bg-blue-500/15 dark:text-blue-200">
+                  <CalendarDays className="size-4 shrink-0" />
+                  <span className="font-medium">
+                    {formatScheduleDate(selectedSchedule.startDateTime, {
+                      weekday: "short",
                       month: "short",
                       day: "numeric",
-                      year: "numeric",
-                    }
-                  )}
-
-                  {" at "}
-
-                  {formatScheduleDate(
-                    selectedSchedule.startDateTime,
-                    {
+                    })}
+                    {" · "}
+                    {formatScheduleDate(selectedSchedule.startDateTime, {
                       hour: "numeric",
                       minute: "2-digit",
                       hour12: true,
-                    }
-                  )}
-                </>
+                    })}
+                  </span>
+                </div>
               ) : (
-                "No time slot selected"
+                <span className="text-muted-foreground">
+                  Select a time slot to continue
+                </span>
               )}
             </div>
 
@@ -368,6 +333,7 @@ export default function BookAppointmentDialog({
                 type="button"
                 variant="outline"
                 onClick={handleCloseModal}
+                className="cursor-pointer"
               >
                 Cancel
               </Button>
@@ -376,8 +342,10 @@ export default function BookAppointmentDialog({
                 type="button"
                 onClick={handleContinue}
                 disabled={!selectedSchedule}
+                className="cursor-pointer bg-blue-600 text-white hover:bg-blue-700"
               >
                 Continue
+                <ArrowRight className="ml-2 size-4" />
               </Button>
             </div>
           </div>
